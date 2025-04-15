@@ -3,8 +3,8 @@ import time
 import json
 from pathlib import Path
 from .datamodel import TeamResult, TaskResult, TeamConfig
-from autogen_agentchat.messages import AgentMessage, ChatMessage
-from autogen_core.base import CancellationToken
+from autogen_agentchat.messages import ChatMessage, BaseChatMessage, BaseAgentEvent
+from autogen_core._cancellation_token import CancellationToken # Corrected import path
 from .provider import Provider
 from .datamodel import TeamConfig
 
@@ -38,7 +38,7 @@ class TeamManager:
         task: str,
         team_config: Optional[Union[TeamConfig, str, Path]] = None,
         cancellation_token: Optional[CancellationToken] = None
-    ) -> AsyncGenerator[Union[AgentMessage, ChatMessage, TaskResult], None]:
+    ) -> AsyncGenerator[Union[ChatMessage, BaseAgentEvent, TaskResult], None]:
         """Stream the team's execution results with optional JSON config loading"""
         start_time = time.time()
 

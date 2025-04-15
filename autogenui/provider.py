@@ -1,13 +1,13 @@
 
 from .datamodel import AgentConfig, ModelConfig, ToolConfig, TerminationConfig, TeamConfig
-from autogen_agentchat.agents import AssistantAgent, CodingAssistantAgent
+from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
-from autogen_ext.models import OpenAIChatCompletionClient
-from autogen_agentchat.task import MaxMessageTermination, StopMessageTermination, TextMentionTermination
-from autogen_core.components.tools import FunctionTool
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+from autogen_agentchat.conditions._terminations import MaxMessageTermination, StopMessageTermination, TextMentionTermination
+from autogen_core.tools._function_tool import FunctionTool
 
 
-AgentTypes = AssistantAgent | CodingAssistantAgent
+AgentTypes = AssistantAgent
 TeamTypes = RoundRobinGroupChat | SelectorGroupChat
 ModelTypes = OpenAIChatCompletionClient | None
 TerminationTypes = MaxMessageTermination | StopMessageTermination | TextMentionTermination

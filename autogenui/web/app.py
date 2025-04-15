@@ -1,4 +1,4 @@
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,11 +11,11 @@ import datetime
 import traceback
 import asyncio
 from pathlib import Path
+from fastapi.staticfiles import StaticFiles # Ensure StaticFiles is imported
 
 # Import your team manager components
 from autogen_agentchat import EVENT_LOGGER_NAME
-from autogen_agentchat.messages import AgentMessage, ChatMessage, ToolCallMessage, ToolCallResultMessage
-from autogen_core.base import CancellationToken
+from autogen_agentchat.messages import ChatMessage, BaseChatMessage
 from ..manager import TeamManager
 from ..datamodel import TeamResult, TaskResult
 
@@ -68,7 +68,7 @@ app = FastAPI()
 # CORS middleware setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Add your frontend URL
+    allow_origins=["http://localhost:3000", "http://localhost:8081", "http://127.0.0.1:8081"],  # Allow frontend dev server and the served UI origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -146,12 +146,8 @@ async def generate(req: GenerateWebRequest):
             cancellation_token=None
         ):
             try:
-                if isinstance(message, (AgentMessage, ChatMessage)):
-                    content = message.content if hasattr(
-                        message, 'content') else str(message)
-                    if isinstance(message, ToolCallMessage) or isinstance(message, ToolCallResultMessage):
-                        content = "".join([str(tool_call)
-                                           for tool_call in message.content])
+                if isinstance(message, BaseChatMessage):
+                    content = message.content if hasattr(message, 'content') else str(message)
                     await websocket.send_json({
                         "type": "message",
                         "content": content,
@@ -208,10 +204,16 @@ async def generate(req: GenerateWebRequest):
 # Mount the API router
 app.mount("/api", api)
 
+# Serve static files from the 'ui' directory
+ui_path = Path(__file__).parent / "ui"
+if ui_path.exists():
+    app.mount("/", StaticFiles(directory=ui_path, html=True), name="ui")
+else:
+    logger.warning(f"UI directory not found at {ui_path}, UI will not be served.")
 
-@app.get("/")
-async def root():
-    return {"message": "API is running"}
+# @app.get("/") # This route is now handled by StaticFiles if index.html exists
+# async def root():
+#     return {"message": "API is running"}
 
 if __name__ == "__main__":
     import uvicorn
