@@ -25,19 +25,13 @@ class Provider():
                 raise ValueError("Invalid model config")
         model = None
         if model_config.model_type == "OpenAIChatCompletionClient":
-            # Instantiate using the correctly imported OpenAIChatCompletionClient
-            # Use user-specified SiliconFlow endpoint and DeepSeek model
+            # Instantiate using the configuration provided in model_config
+            # Use getattr for optional fields to avoid errors if they are not present
             model = OpenAIChatCompletionClient(
-                model="deepseek-ai/DeepSeek-V3",
-                base_url="https://api.siliconflow.cn/v1",
-                model_info={
-                    "vision": False,
-                    "function_calling": True,
-                    "json_output": True,
-                    "family": "unknown", # More accurate for non-standard models
-                    "structured_output": False, # Safer default unless structured output is confirmed
-                },
-                # API key is expected via OPENAI_API_KEY environment variable
+                model=model_config.model,
+                base_url=getattr(model_config, 'base_url', None),
+                model_info=getattr(model_config, 'model_info', None)
+                # The client typically handles API key from environment variables (e.g., OPENAI_API_KEY)
             )
         return model
 

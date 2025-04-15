@@ -4,8 +4,16 @@
     {
       "name": "writing_agent",
       "model_client": {
-        "model": "gpt-4o-2024-08-06",
-        "model_type": "OpenAIChatCompletionClient"
+        "model": "deepseek-ai/DeepSeek-V3",
+        "model_type": "OpenAIChatCompletionClient",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "model_info": {
+          "vision": false,
+          "function_calling": true,
+          "json_output": true,
+          "family": "unknown",
+          "structured_output": false
+        }
       },
       "tools": [
         {
@@ -14,7 +22,8 @@
           "content": "async def get_weather(city: str) -> str:\n    return f\"The weather in {city} is 73 degrees and Sunny.\""
         }
       ],
-      "agent_type": "AssistantAgent"
+      "agent_type": "AssistantAgent",
+      "system_message": "You are a creative writing assistant. Use the get_weather tool to find the weather and then write a short story about it."
     }
   ],
   "termination_condition": {
