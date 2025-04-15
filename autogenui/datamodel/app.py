@@ -9,6 +9,8 @@ from autogen_agentchat.base._task import TaskResult
 class ModelConfig:
     model: str
     model_type: Literal["OpenAIChatCompletionClient"]
+    base_url: Optional[str] = None # Add base_url as it's also used
+    model_info: Optional[dict] = None # Add the missing model_info field
 
 
 @dataclass

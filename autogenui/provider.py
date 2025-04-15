@@ -25,14 +25,30 @@ class Provider():
                 raise ValueError("Invalid model config")
         model = None
         if model_config.model_type == "OpenAIChatCompletionClient":
-            # Instantiate using the configuration provided in model_config
-            # Use getattr for optional fields to avoid errors if they are not present
-            model = OpenAIChatCompletionClient(
-                model=model_config.model,
-                base_url=getattr(model_config, 'base_url', None),
-                model_info=getattr(model_config, 'model_info', None)
-                # The client typically handles API key from environment variables (e.g., OPENAI_API_KEY)
-            )
+            # Prepare arguments for the client constructor
+            client_args = {
+                "model": model_config.model,
+            }
+            # Add optional arguments if they exist in the config
+            if hasattr(model_config, 'base_url') and model_config.base_url:
+                client_args['base_url'] = model_config.base_url
+            # Crucially, pass model_info if it exists, as required for non-standard model names
+            if hasattr(model_config, 'model_info') and model_config.model_info:
+                # Assuming model_info in config is already a dict or compatible structure
+                client_args['model_info'] = model_config.model_info
+
+            # Instantiate the client using the prepared arguments
+            # The client typically handles API key from environment variables (e.g., OPENAI_API_KEY)
+            try:
+                 model = OpenAIChatCompletionClient(**client_args)
+            except ValueError as e:
+                 # Provide more context if the specific error occurs again
+                 print(f"Error initializing OpenAIChatCompletionClient: {e}")
+                 print(f"Arguments passed: {client_args}")
+                 raise e # Re-raise the original error
+            except Exception as e:
+                 print(f"An unexpected error occurred during client initialization: {e}")
+                 raise e
         return model
 
     def _func_from_string(self, content: str) -> callable:
