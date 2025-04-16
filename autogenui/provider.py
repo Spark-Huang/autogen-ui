@@ -111,7 +111,11 @@ class Provider():
         if agent_config.agent_type == "AssistantAgent":
             model_client = self.load_model(agent_config.model_client)
             system_message = agent_config.system_message if agent_config.system_message else "You are a helpful AI assistant. Solve tasks using your tools. Reply with 'TERMINATE' when the task has been completed."
-            tools = [self.load_tool(tool) for tool in agent_config.tools]
+            # Handle cases where tools might be None before iterating
+            tools = []
+            if agent_config.tools is not None:
+                tools = [self.load_tool(tool) for tool in agent_config.tools]
+            
             agent = AssistantAgent(
                 name=agent_config.name, model_client=model_client, tools=tools, system_message=system_message)
 

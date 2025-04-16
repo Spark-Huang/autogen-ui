@@ -109,8 +109,10 @@ export default function MessageList({
                         </div>
                       )}
 
+                      {/* Add a dynamic key to Collapse based on status to force re-mount */}
                       {message.sessionId && sessionLogs[message.sessionId] && (
                         <Collapse
+                          key={`collapse-${message.sessionId}-${message.status}`} // Key changes when status changes
                           defaultActiveKey={
                             message.status === "processing" ? ["1"] : []
                           }

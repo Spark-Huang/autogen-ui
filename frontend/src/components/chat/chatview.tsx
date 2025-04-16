@@ -90,6 +90,12 @@ export default function ChatView({
       };
 
       socket.onmessage = (event) => {
+        // Handle heartbeat pong message
+        if (event.data === "pong") {
+          // console.log("Received pong"); // Optional: log pong if needed
+          return; // Ignore pong messages, do not parse as JSON
+        }
+
         try {
           const logEvent = JSON.parse(event.data);
           console.log("Received event:", logEvent);
@@ -117,9 +123,11 @@ export default function ChatView({
             setMessages((prev) =>
               prev.map((msg) => {
                 if (msg.sessionId === sessionId && msg.sender === "bot") {
+                  // update finalResponse and status
                   return {
                     ...msg,
                     finalResponse: logEvent.content,
+                    status: "complete",
                   };
                 }
                 return msg;

@@ -148,30 +148,76 @@ async def generate(req: GenerateWebRequest):
             try:
                 if isinstance(message, BaseChatMessage):
                     content = message.content if hasattr(message, 'content') else str(message)
+                    # Determine the source name using message.source
+                    source_name = "system" # Default fallback
+                    if hasattr(message, 'source') and isinstance(message.source, str) and message.source:
+                        # Use message.source if it's a non-empty string
+                        source_name = message.source
+                    else:
+                        # Log if source is missing or not a string, then fallback
+                        logger.warning(f"[Source Check] Message 'source' attribute missing, not a string, or empty. Falling back to 'system'. Message: {message}")
+
+                    # Removed detailed sender logging
+
                     await websocket.send_json({
                         "type": "message",
                         "content": content,
-                        "source": message.sender if hasattr(message, 'sender') else "system",
+                        "source": source_name, # Use the determined source name (from message.source)
                         "timestamp": str(datetime.datetime.now())
                     })
                 elif isinstance(message, TeamResult):
+                    # Restore original content extraction logic (or the improved one without logs)
+                    content_to_send = "[No final_responder message found]" # Default
+                    final_responder_name = "final_responder" # Agreed-upon name for the final agent
+                    try:
+                        if hasattr(message.task_result, 'messages') and message.task_result.messages:
+                            logger.info(f"Searching for last non-empty message from agent '{final_responder_name}' in: {message.task_result.messages}")
+                            # Iterate backwards through messages
+                            for msg in reversed(message.task_result.messages):
+                                # Check if message is from the designated final responder and has non-empty content
+                                if hasattr(msg, 'source') and msg.source == final_responder_name and hasattr(msg, 'content') and msg.content:
+                                    logger.info(f"Found suitable message from {final_responder_name}: {msg}")
+                                    content_to_send = str(msg.content)
+                                    break # Stop after finding the first suitable one
+                            # Keep warning if no suitable message found
+                            if content_to_send == "[No final_responder message found]":
+                                logger.warning(f"Could not find a non-empty message from agent '{final_responder_name}' in the list.")
+                        elif hasattr(message.task_result, 'messages'):
+                             logger.warning("TeamResult.task_result.messages is empty.")
+                             content_to_send = "[Messages list is empty]"
+                        else:
+                             logger.warning("TeamResult.task_result has no 'messages' attribute. Falling back to str(message).")
+                             content_to_send = str(message) # Fallback
+                    except Exception as log_err:
+                         logger.error(f"Error during content extraction for TeamResult: {log_err}")
+                         content_to_send = f"[Error during extraction: {log_err}]"
+
+                    # Send the result event as "TaskResultEvent"
                     await websocket.send_json({
-                        "type": "result",
-                        "content": str(message.task_result.messages[-1].content) if hasattr(message.task_result, 'messages') else str(message),
+                        "type": "TaskResultEvent", # Changed type here
+                        "content": content_to_send,
                         "source": "task_result",
                         "timestamp": str(datetime.datetime.now())
                     })
+
+                    # Send TerminationEvent immediately after the result (without extra logs)
+                    await websocket.send_json({
+                        "type": "TerminationEvent",
+                        "content": "Stream completed after result",
+                        "timestamp": str(datetime.datetime.now())
+                    })
+
+                    # Break the loop (without extra logs)
+                    break
+
             except Exception as e:
                 logger.error(
                     f"Error sending message for session {req.session_id}: {str(e)}")
+                # If sending fails, we might still want to try sending an error event later
+                # but re-raise for now to be caught by the outer handler
                 raise
 
-        # Send completion event
-        await websocket.send_json({
-            "type": "TerminationEvent",
-            "content": "Stream completed",
-            "timestamp": str(datetime.datetime.now())
-        })
+        # REMOVED TerminationEvent send from here, as it's now sent immediately after TeamResult
 
         return {
             "status": True,

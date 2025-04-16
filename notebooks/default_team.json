@@ -23,12 +23,30 @@
         }
       ],
       "agent_type": "AssistantAgent",
-      "system_message": "You are a creative writing assistant. Use the get_weather tool to find the weather and then write a short story about it."
+      "system_message": "You are a creative writing assistant. Use the get_weather tool to find the weather and then write a short story about it. After writing the story, wait for the final_responder to summarize."
+    },
+    {
+      "name": "final_responder",
+      "model_client": {
+        "model": "deepseek-ai/DeepSeek-V3",
+        "model_type": "OpenAIChatCompletionClient",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "model_info": {
+          "vision": false,
+          "function_calling": true,
+          "json_output": true,
+          "family": "unknown",
+          "structured_output": false
+        }
+      },
+      "tools": null,
+      "agent_type": "AssistantAgent",
+      "system_message": "You are the final responder. Summarize the short story written by the writing_agent and present it clearly as the final answer."
     }
   ],
   "termination_condition": {
     "termination_type": "MaxMessageTermination",
-    "max_messages": 5
+    "max_messages": 3
   },
   "team_type": "RoundRobinGroupChat",
   "model_client": null
