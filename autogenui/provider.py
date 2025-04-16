@@ -1,6 +1,5 @@
-
 from .datamodel import AgentConfig, ModelConfig, ToolConfig, TerminationConfig, TeamConfig
-from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.agents import AssistantAgent # AssistantAgent is already imported
 from autogen_agentchat.teams import RoundRobinGroupChat, SelectorGroupChat
 from autogen_ext.models.openai import OpenAIChatCompletionClient
 from autogen_agentchat.conditions._terminations import MaxMessageTermination, StopMessageTermination, TextMentionTermination
@@ -13,10 +12,152 @@ ModelTypes = OpenAIChatCompletionClient | None
 TerminationTypes = MaxMessageTermination | StopMessageTermination | TextMentionTermination
 
 
+# Define the custom speaker selector function (Corrected signature)
+# It only receives the message history
+import logging # Add logging for debugging
+
+# Define the custom speaker selector function (Corrected signature)
+# It only receives the message history
+def custom_speaker_selector(messages: list) -> str | None:
+    """
+    Custom speaker selection based on message history:
+    - Finds the last valid agent message (qa_agent or writing_agent) to base decisions on.
+    - qa_agent speaks first and answers questions. If needed, it can request writing_agent
+      by including 'REQUEST_WRITING_AGENT' in its message. It signals completion by
+      including 'QA_COMPLETE'.
+    - writing_agent speaks ONLY when requested by qa_agent. It signals completion by
+      including 'STORY_COMPLETE'.
+    - final_responder speaks once after either 'QA_COMPLETE' or 'STORY_COMPLETE'
+      is found in the last valid agent message (case-insensitive).
+    - The chat ends after final_responder speaks.
+    """
+    logging.debug(f"Selector called with {len(messages)} messages.")
+    if not messages:
+        logging.debug("Selector: No messages, selecting initial speaker: qa_agent")
+        return "qa_agent"
+
+    # --- Termination Check: Check if final_responder spoke anywhere ---
+    logging.debug("Selector: --- Starting Termination Check ---") # Add start marker
+    for idx, msg in enumerate(messages): # Add index for clarity
+        speaker_name = None
+        logging.debug(f"Selector: Checking message at index {idx}. Type: {type(msg)}, Content snippet: {str(msg)[:150]}...") # Log type and snippet
+
+        # CORRECTED LOGIC: Prioritize 'source' attribute for TextMessage objects
+        if hasattr(msg, 'source'):
+            speaker_name = getattr(msg, 'source', None)
+            logging.debug(f"Selector: Index {idx}: Found 'source' attribute: '{speaker_name}'")
+        # Fallback for dict-like messages
+        elif isinstance(msg, dict):
+            speaker_name = msg.get('source', msg.get('name')) # Prefer 'source', fallback to 'name'
+            logging.debug(f"Selector: Index {idx}: Message is dict. Extracted source/name: '{speaker_name}'")
+        else:
+            logging.debug(f"Selector: Index {idx}: Message is not object with 'source' or dict. Skipping name check.")
+
+        # Check if the speaker is final_responder (case-insensitive)
+        if speaker_name and isinstance(speaker_name, str):
+            processed_name = speaker_name.strip().lower()
+            logging.debug(f"Selector: Index {idx}: Comparing processed name '{processed_name}' with 'final_responder'")
+            if processed_name == "final_responder":
+                logging.debug(f"Selector: MATCH FOUND! final_responder (name from source/dict: '{speaker_name}') found at index {idx}. Terminating.")
+                return None # Terminate the conversation
+        else:
+             logging.debug(f"Selector: Index {idx}: No valid speaker name found or not string. Speaker name was: '{speaker_name}'")
+
+    logging.debug("Selector: --- Finished Termination Check (No termination) ---") # Add end marker
+
+    # --- Find the last valid agent message ---
+    last_valid_agent_message = None
+    logging.debug("Selector: Searching for last valid agent message...")
+    for i in range(len(messages) - 1, -1, -1):
+        msg = messages[i]
+        logging.debug(f"Selector: Checking message at index {i}. Type: {type(msg)}")
+
+        # Try accessing keys directly or via .get() if available
+        source_raw = None
+        content_raw = None
+        try:
+            # Prefer .get() if it's dict-like, otherwise try direct access if it's an object
+            if hasattr(msg, 'get'):
+                 source_raw = msg.get("source")
+                 content_raw = msg.get("content")
+            elif hasattr(msg, 'source') and hasattr(msg, 'content'):
+                 source_raw = msg.source
+                 content_raw = msg.content
+        except Exception as e:
+            logging.debug(f"Selector: Error accessing source/content at index {i}: {e}")
+            continue # Skip if keys/attributes don't exist
+
+        # Check if both source and content were successfully retrieved
+        if source_raw is not None and content_raw is not None:
+            source_type = type(source_raw)
+            logging.debug(f"Selector: Index {i}: Found 'source' key/attr. Type: {source_type}, Raw value: '{source_raw}'")
+
+            # Ensure source is string before processing
+            if isinstance(source_raw, str):
+                source_stripped = source_raw.strip()
+                source_lower = source_stripped.lower()
+                logging.debug(f"Selector: Index {i}: Stripped source: '{source_stripped}', Lowercased source: '{source_lower}'")
+
+                # Check if source contains agent names (case-insensitive)
+                is_qa_agent = "qa_agent" in source_lower
+                is_writing_agent = "writing_agent" in source_lower
+                logging.debug(f"Selector: Index {i}: 'qa_agent' in source? {is_qa_agent}, 'writing_agent' in source? {is_writing_agent}")
+
+                if is_qa_agent or is_writing_agent:
+                    last_valid_agent_message = msg # Store the original msg object
+                    logging.debug(f"Selector: Found last valid agent message at index {i} from source '{source_lower}' (original source: '{source_raw}')")
+                    break # Found the most recent valid one
+                else:
+                    logging.debug(f"Selector: Processed message source '{source_lower}' does not contain 'qa_agent' or 'writing_agent'. Skipping.")
+            else:
+                logging.debug(f"Selector: Message source at index {i} is not a string (Type: {source_type}). Skipping.")
+        else:
+            logging.debug(f"Selector: Message at index {i} lacks 'source' or 'content' key/attribute. Skipping. Msg: {msg}")
+
+
+    if last_valid_agent_message is None:
+        logging.warning("Selector: No valid agent message (containing 'qa_agent' or 'writing_agent' in source) found in history. Defaulting to qa_agent.")
+        return "qa_agent" # Default if no valid agent message found
+
+    # --- Speaker Selection based on LAST VALID AGENT message ---
+    # Get source and content from the identified valid message (using the same safe access)
+    last_valid_source_raw = None
+    last_valid_content_raw = None
+    try:
+        if hasattr(last_valid_agent_message, 'get'):
+             last_valid_source_raw = last_valid_agent_message.get("source")
+             last_valid_content_raw = last_valid_agent_message.get("content")
+        elif hasattr(last_valid_agent_message, 'source') and hasattr(last_valid_agent_message, 'content'):
+             last_valid_source_raw = last_valid_agent_message.source
+             last_valid_content_raw = last_valid_agent_message.content
+    except Exception as e:
+         logging.error(f"Selector: Error accessing source/content from identified last_valid_agent_message: {e}. Defaulting to qa_agent.")
+         return "qa_agent" # Should not happen if found previously, but safety check
+
+    last_valid_source = str(last_valid_source_raw).strip().lower() if isinstance(last_valid_source_raw, str) else "" # Processed source
+    last_valid_content = str(last_valid_content_raw).strip().lower() if isinstance(last_valid_content_raw, str) else ""
+
+    # 1. Trigger writing_agent if requested by qa_agent in the last valid message
+    # Use processed source and content
+    if "qa_agent" in last_valid_source and "request_writing_agent" in last_valid_content:
+        logging.debug("Selector: Selecting writing_agent based on request in last valid message.")
+        return "writing_agent"
+
+    # 2. Trigger final_responder if a completion signal is in the last valid message
+    # Use processed source and content
+    if ("qa_agent" in last_valid_source and "qa_complete" in last_valid_content) or \
+       ("writing_agent" in last_valid_source and "story_complete" in last_valid_content):
+        logging.debug(f"Selector: Selecting final_responder based on completion signal in last valid message: '{last_valid_content}' from source '{last_valid_source_raw}'") # Log original source for clarity
+        return "final_responder"
+
+    # 3. Default: qa_agent
+    logging.debug("Selector: No specific trigger in last valid message. Defaulting to qa_agent.")
+    return "qa_agent"
+
+
 class Provider():
     def __init__(self):
         pass
-
     def load_model(self, model_config: ModelConfig | dict) -> ModelTypes:
         if isinstance(model_config, dict):
             try:
@@ -154,6 +295,21 @@ class Provider():
             team = RoundRobinGroupChat(
                 agents, termination_condition=termination)
         elif team_config.team_type == "SelectorGroupChat":
-            team = SelectorGroupChat(agents, termination_condition=termination)
+            # Load the top-level model client ONLY if it's defined in the config
+            top_level_client = None
+            if team_config.model_client:
+                 top_level_client = self.load_model(team_config.model_client)
+            else:
+                 # Explicitly handle the case where no model_client is needed/provided
+                 logging.debug("SelectorGroupChat: No top-level model_client configured. Relying solely on selector_func.")
+
+            # Pass agents as the first positional argument
+            # Use the correct 'selector_func' parameter name
+            team = SelectorGroupChat(
+                agents, # Positional argument
+                termination_condition=termination,
+                model_client=top_level_client, # Pass the potentially None client
+                selector_func=custom_speaker_selector # Use correct parameter
+            )
 
         return team

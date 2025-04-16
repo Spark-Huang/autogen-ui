@@ -50,7 +50,11 @@ export default function MessageList({
             <div>{new Date(log.timestamp).toLocaleTimeString()}</div>
           </div>
           <div className="mt-1">
-            <MarkdownView data={log.content} />
+            {/* Remove trailing TERMINATE from logs before rendering */}
+            {(() => {
+              const cleanLogContent = log.content?.replace(/\s*TERMINATE\s*$/, "");
+              return cleanLogContent ? <MarkdownView data={cleanLogContent} /> : null;
+            })()}
           </div>
         </div>
       );
@@ -105,7 +109,11 @@ export default function MessageList({
                     <>
                       {message.finalResponse && (
                         <div className="mb-4">
-                          <MarkdownView data={message.finalResponse} />
+                          {/* Remove trailing TERMINATE from final response before rendering */}
+                          {(() => {
+                            const cleanFinalResponse = message.finalResponse?.replace(/\s*TERMINATE\s*$/, "");
+                            return cleanFinalResponse ? <MarkdownView data={cleanFinalResponse} /> : null;
+                          })()}
                         </div>
                       )}
 

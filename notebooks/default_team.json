@@ -1,6 +1,24 @@
 {
-  "name": "weather_team",
+  "name": "assistant_team",
   "participants": [
+    {
+      "name": "qa_agent",
+      "model_client": {
+        "model": "deepseek-ai/DeepSeek-V3",
+        "model_type": "OpenAIChatCompletionClient",
+        "base_url": "https://api.siliconflow.cn/v1",
+        "model_info": {
+          "vision": false,
+          "function_calling": true,
+          "json_output": true,
+          "family": "unknown",
+          "structured_output": false
+        }
+      },
+      "tools": null,
+      "agent_type": "AssistantAgent",
+      "system_message": "You are a helpful assistant that answers questions concisely. If the user asks for a story or something that requires creative writing, respond with ONLY the exact phrase: REQUEST_WRITING_AGENT. Otherwise, after providing your answer to a question, if you believe the question is fully addressed, end your message with the exact phrase: QA_COMPLETE"
+    },
     {
       "name": "writing_agent",
       "model_client": {
@@ -23,7 +41,7 @@
         }
       ],
       "agent_type": "AssistantAgent",
-      "system_message": "You are a creative writing assistant. Use the get_weather tool to find the weather and then write a short story about it. After writing the story, wait for the final_responder to summarize."
+      "system_message": "You are a creative writing assistant. Your primary goal is to write a short story based on the weather provided by the get_weather tool. You MUST continue writing the story across multiple turns if necessary. Do NOT stop until the story is completely finished. Once the story is fully complete, your final message must contain ONLY the exact phrase: STORY_COMPLETE. For any other questions or requests not related to writing the story, answer concisely."
     },
     {
       "name": "final_responder",
@@ -41,13 +59,24 @@
       },
       "tools": null,
       "agent_type": "AssistantAgent",
-      "system_message": "You are the final responder. Summarize the short story written by the writing_agent and present it clearly as the final answer."
+      "system_message": "You are the final responder. Your primary task is to summarize the preceding conversation history clearly. IMPORTANT: First, provide your summary. Then, and only then, on a completely new line, output the single word: TERMINATE"
     }
   ],
   "termination_condition": {
-    "termination_type": "MaxMessageTermination",
-    "max_messages": 3
+    "termination_type": "TextMentionTermination",
+    "text": "TERMINATE"
   },
-  "team_type": "RoundRobinGroupChat",
-  "model_client": null
+  "team_type": "SelectorGroupChat",
+  "model_client": {
+    "model": "deepseek-ai/DeepSeek-V3",
+    "model_type": "OpenAIChatCompletionClient",
+    "base_url": "https://api.siliconflow.cn/v1",
+    "model_info": {
+      "vision": false,
+      "function_calling": true,
+      "json_output": true,
+      "family": "unknown",
+      "structured_output": false
+    }
+  }
 }

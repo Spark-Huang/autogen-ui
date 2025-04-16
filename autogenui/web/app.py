@@ -82,7 +82,7 @@ connection_manager = ConnectionManager()
 team_manager = TeamManager()
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG) # Set level to DEBUG to see detailed logs
 logger = logging.getLogger(EVENT_LOGGER_NAME)
 logger.setLevel(logging.INFO)
 
